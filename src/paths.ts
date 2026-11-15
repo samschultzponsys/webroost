@@ -11,10 +11,15 @@ for (const [k, v] of Object.entries(process.env)) {
   }
 }
 
+/** True on Windows (Start menu shortcuts, registry link handlers, NSIS updates). */
+export const IS_WINDOWS = process.platform === 'win32';
+
 /** True when running inside a Flatpak sandbox. */
 export const IN_FLATPAK = !!process.env.FLATPAK_ID;
 
 function hostConfigHome(): string {
+  // Windows: %APPDATA% (C:\Users\<you>\AppData\Roaming), like other desktop apps.
+  if (IS_WINDOWS) return process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
   // Inside Flatpak XDG_CONFIG_HOME points at ~/.var/app/<id>/config. We want the
   // host's ~/.config/webroost (granted via --filesystem=xdg-config/webroost:create)
   // so the same apps.yaml works for every install flavour.
@@ -28,7 +33,7 @@ function hostDataHome(): string {
 }
 
 export const CONFIG_HOME = hostConfigHome();
-export const CONFIG_DIR = path.join(hostConfigHome(), 'webroost');
+export const CONFIG_DIR = path.join(hostConfigHome(), IS_WINDOWS ? 'WebRoost' : 'webroost');
 /** Written after copying PWA Pop's settings; the manager shows a one-time banner. */
 export const MIGRATION_NOTE = path.join(CONFIG_DIR, 'state', '_moved-from-pwa-pop.json');
 /** Where PWA Pop (the name before WebRoost) kept everything. */

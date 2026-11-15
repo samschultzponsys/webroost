@@ -1,8 +1,8 @@
 {
   "name": "webroost",
   "productName": "WebRoost",
-  "version": "5.0.0",
-  "description": "Run web apps (Outlook, Claude, Linkus…) as standalone, tray-resident desktop apps on Linux",
+  "version": "5.1.0",
+  "description": "Run web apps (Outlook, Claude, Linkus…) as standalone, tray-resident desktop apps on Linux and Windows",
   "main": "dist/main.js",
   "license": "Apache-2.0",
   "author": {
@@ -145,6 +145,31 @@
       ]
     },
     "appImage": {},
-    "publish": null
+    "publish": null,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icons/512x512.png",
+      "executableName": "webroost"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
+      "shortcutName": "WebRoost",
+      "uninstallDisplayName": "WebRoost",
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh",
+      "artifactName": "webroost-${env.RELEASE_VERSION}-x64-setup.${ext}"
+    }
   }
 }

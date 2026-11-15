@@ -235,3 +235,19 @@ test('Google sign-in pages get a current Firefox identity', () => {
   assert.ok(!GOOGLE_SIGNIN_HOSTS.test('claude.ai'));
   assert.ok(!GOOGLE_SIGNIN_HOSTS.test('mail.google.com'));
 });
+
+test('Windows helpers: icon files, file names, shortcut arguments', () => {
+  const { pngToIco, safeFileName, winArgs, appUserModelId } = require('../dist/windows');
+  const png = Buffer.from('\x89PNG\r\n\x1a\nfake', 'latin1');
+  const ico = pngToIco(png);
+  assert.strictEqual(ico.readUInt16LE(2), 1, 'icon type');
+  assert.strictEqual(ico.readUInt16LE(4), 1, 'one image');
+  assert.strictEqual(ico.readUInt32LE(6 + 8), png.length);
+  assert.strictEqual(ico.readUInt32LE(6 + 12), 22, 'image right after the header');
+  assert.ok(ico.subarray(22).equals(png));
+  assert.strictEqual(safeFileName('Claude: Work/Home?'), 'Claude- Work-Home-');
+  assert.strictEqual(safeFileName('  ...  '), 'App');
+  assert.strictEqual(winArgs(['--app', 'claude-2', '--hidden']), '--app claude-2 --hidden');
+  assert.strictEqual(winArgs(['C:\\Program Files\\x', '--app', 'a']), '"C:\\Program Files\\x" --app a');
+  assert.strictEqual(appUserModelId('outlook'), 'io.github.samschultzponsys.WebRoost.outlook');
+});

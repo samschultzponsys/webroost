@@ -4,7 +4,7 @@ import * as net from 'net';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, session, shell } from 'electron';
 import { AppConfig, ID_RE, loadApps, removeApp, resolveApp, upsertApp } from './config';
 import { installApp, installManagerEntry, isInstalled, setAutostart, uninstallApp } from './desktop';
-import { CONFIG_FILE, ensureDir, ICON_DIR, PROFILE_DIR, assetPath, IN_FLATPAK, readVersionMarker, releaseVersion, spawnSelf, MIGRATION_NOTE } from './paths';
+import { CONFIG_FILE, ensureDir, ICON_DIR, PROFILE_DIR, assetPath, IN_FLATPAK, readVersionMarker, releaseVersion, spawnSelf, MIGRATION_NOTE, IS_WINDOWS, STATE_DIR } from './paths';
 import { isNewer } from './updater';
 import { cleanUserAgent } from './runtime';
 import { inspectSite } from './inspect';
@@ -20,6 +20,16 @@ import { autoCheckEnabled, checkForUpdates, downloadUpdate, installUpdate, setAu
  * SingletonLock is useless inside Flatpak: every sandbox has its own PIDs.)
  */
 function isRunning(id: string): Promise<boolean> {
+  if (IS_WINDOWS) {
+    // Windows: a running Chromium keeps <profile>\lockfile open exclusively.
+    const lock = path.join(PROFILE_DIR, id, 'lockfile');
+    try {
+      fs.closeSync(fs.openSync(lock, 'r+'));
+      return Promise.resolve(false);
+    } catch (e: any) {
+      return Promise.resolve(e?.code === 'EBUSY' || e?.code === 'EPERM');
+    }
+  }
   const sock = path.join(PROFILE_DIR, id, 'SingletonSocket');
   if (!fs.existsSync(sock)) return Promise.resolve(false);
   return new Promise((resolve) => {
@@ -233,13 +243,17 @@ function registerIpc(win: BrowserWindow) {
     version: releaseVersion(), configFile: CONFIG_FILE, flatpak: IN_FLATPAK, appImage: !!process.env.APPIMAGE,
   }));
   h('update:check', (force: boolean) => checkForUpdates(!!force));
-  h('update:install', () => installUpdate((p) => {
+  h('update:install', async () => {
+    if (IS_WINDOWS) return windowsUpdate(win);
+    return linuxUpdate(win);
+  });
+  const linuxUpdate = (win: BrowserWindow) => installUpdate((p) => {
     if (!win.isDestroyed()) { win.setProgressBar(p); win.webContents.send('update:progress', p); }
   }).then(async (msg) => {
     // Start the freshly installed version once so running apps restart onto it.
     await spawnSelf(['--restart-all']);
     return msg;
-  }).finally(() => { if (!win.isDestroyed()) win.setProgressBar(-1); }));
+  }).finally(() => { if (!win.isDestroyed()) win.setProgressBar(-1); });
   h('update:guide', () => updateGuide());
   h('update:download', () => downloadUpdate((p) => {
     if (!win.isDestroyed()) { win.setProgressBar(p); win.webContents.send('update:progress', p); }
@@ -248,6 +262,47 @@ function registerIpc(win: BrowserWindow) {
   h('update:getAuto', () => autoCheckEnabled());
   h('update:setAuto', (on: boolean) => { setAutoCheck(!!on); return true; });
   h('app:openExternal', (url: string) => { if (/^https?:/.test(url)) void shell.openExternal(url); });
+}
+
+/** Apps to reopen after a Windows update (the installer closes everything). */
+const RELAUNCH_FILE = () => path.join(STATE_DIR, '_reopen-after-update.json');
+
+/**
+ * Windows: note which apps are running, quit them cleanly (their sign-ins are
+ * saved on the way out), then run the installer, which starts the manager
+ * again; the manager reopens those apps.
+ */
+async function windowsUpdate(win: BrowserWindow): Promise<string> {
+  const running: string[] = [];
+  for (const a of loadApps()) if (await isRunning(a.id)) running.push(a.id);
+  ensureDir(STATE_DIR);
+  fs.writeFileSync(RELAUNCH_FILE(), JSON.stringify({ at: Date.now(), apps: running }));
+  try {
+    // Download and verify first: if that fails, nothing has been closed.
+    const file = await downloadUpdate((p) => {
+      if (!win.isDestroyed()) { win.setProgressBar(p); win.webContents.send('update:progress', p); }
+    });
+    for (const id of running) await spawnSelf(['--app', id, '--quit']);
+    await new Promise((r) => setTimeout(r, 3000)); // let them save and exit
+    const { spawn } = require('child_process') as typeof import('child_process');
+    spawn(file, ['/S', '--force-run'], { detached: true, stdio: 'ignore' }).unref();
+    setTimeout(() => app.quit(), 500);
+    return 'Installing the update. WebRoost and your apps start again by themselves in a moment.';
+  } catch (e) {
+    fs.rmSync(RELAUNCH_FILE(), { force: true });
+    throw e;
+  } finally {
+    if (!win.isDestroyed()) win.setProgressBar(-1);
+  }
+}
+
+/** After a Windows update: reopen the apps that were running before it. */
+async function reopenAfterUpdate(): Promise<void> {
+  let data: { at: number; apps: string[] } | null = null;
+  try { data = JSON.parse(fs.readFileSync(RELAUNCH_FILE(), 'utf8')); } catch { return; }
+  fs.rmSync(RELAUNCH_FILE(), { force: true });
+  if (!data || Date.now() - data.at > 30 * 60_000) return;
+  for (const id of data.apps) if (!(await isRunning(id))) await spawnSelf(['--app', id, '--hidden']);
 }
 
 export async function runManager(): Promise<void> {
@@ -282,6 +337,7 @@ export async function runManager(): Promise<void> {
   app.on('second-instance', () => { if (win.isMinimized()) win.restore(); win.show(); win.focus(); });
   app.on('window-all-closed', () => app.quit());
   await win.loadFile(assetPath('renderer', 'manager.html'));
+  if (IS_WINDOWS) void reopenAfterUpdate();
   watchForNewVersion(win);
 }
 

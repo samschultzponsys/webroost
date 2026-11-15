@@ -12,7 +12,7 @@ desktop app: own window, tray icon, login, notifications, unread badge, autostar
   <a href="#install">Install</a> ·
   <a href="#moving-from-pwa-pop">Moving from PWA Pop</a> ·
   <a href="TESTING.md">Test checklist</a>
-  <br>Current version: <b>5.0</b> · Linux (KDE Plasma, GNOME, XFCE, Cinnamon…) · X11 and Wayland
+  <br>Current version: <b>5.1</b> · Windows 10 / 11 · Linux (KDE Plasma, GNOME, XFCE, Cinnamon…), X11 and Wayland
 </p>
 
 <p align="center"><img src="docs/screenshots/manager.png" width="820" alt="The WebRoost manager listing four apps with their status, memory use and buttons"></p>
@@ -72,7 +72,8 @@ Every release has every format, with the version in the file name:
 
 | Distro | File | Install |
 |---|---|---|
-| Any distro, sandboxed (**recommended**) | `webroost-<ver>-x86_64.flatpak` | `flatpak install --user ./webroost-<ver>-x86_64.flatpak` |
+| **Windows 10 / 11** | `webroost-<ver>-x64-setup.exe` | Run it (installs for your user, no admin rights needed) |
+| Any distro, sandboxed (**recommended** on Linux) | `webroost-<ver>-x86_64.flatpak` | `flatpak install --user ./webroost-<ver>-x86_64.flatpak` |
 | Fedora, RHEL, Alma, openSUSE | `webroost-<ver>-x86_64.rpm` | `sudo dnf install ./webroost-<ver>-x86_64.rpm` |
 | Debian, Ubuntu, Mint, Pop!_OS | `webroost-<ver>-amd64.deb` | `sudo apt install ./webroost-<ver>-amd64.deb` |
 | Arch, Manjaro, EndeavourOS | `webroost-<ver>-x64.pacman` | `sudo pacman -U webroost-<ver>-x64.pacman` |
@@ -82,6 +83,28 @@ Every release has every format, with the version in the file name:
 The rpm, deb and pacman packages install to `/opt/webroost` and add the
 `webroost` command (plus `webtray`, the old name), a menu entry and the headset
 udev rule.
+
+### Windows
+
+- The installer isn't code-signed yet, so Windows SmartScreen may say
+  *"Windows protected your PC"*. Click **More info → Run anyway**.
+- WebRoost installs to your user profile (no admin rights) and adds **WebRoost**
+  to the Start menu. Each app you add gets its own Start menu entry in
+  *WebRoost apps*, its own taskbar button and its own notifications. Autostart
+  uses your Startup folder.
+- Settings, icons and logins live in `%APPDATA%\WebRoost`. Moving from Linux?
+  **Export…** there and **Import…** here (sign in to each app once).
+- Minimize to the tray, unread badges (on the taskbar button), new-mail
+  popups, headset buttons and click-to-call work as on Linux. Headsets need
+  no extra setup on Windows.
+- Phone links: the first time you click a `tel:` link, Windows may ask which
+  app to use. Pick WebRoost, or set it under *Settings → Apps → Default apps*.
+- Updates: **Install update** downloads and checks the installer, closes your
+  apps, installs it and reopens them.
+- Uninstalling (Settings → Apps) also removes the app shortcuts; your settings
+  in `%APPDATA%\WebRoost` are kept.
+
+### Linux
 
 **Headset with the Flatpak or AppImage?** Install the udev rule once, then
 replug the headset (the native packages do this for you):
@@ -219,6 +242,7 @@ banner in the manager.
 
 | Installed as | Updating |
 |---|---|
+| Windows installer | **Install update** downloads the installer and checks it against `SHA256SUMS.txt`, closes your apps (saving their sign-ins), installs it and reopens them. |
 | AppImage, rpm, deb, pacman | **Install update** downloads the release, verifies it against `SHA256SUMS.txt` and installs it (with your password for system packages). Then every running app restarts onto it, waiting until you're not on a call. |
 | Flatpak | **How to update** gives a one-line command that downloads, verifies and installs it, then restarts the apps; **Download** saves the verified file to `~/Downloads`. Installed from the Flatpak repository (if enabled), Discover and `flatpak update` handle it. |
 | tar.gz | You're told about the release; download it yourself. |
@@ -229,7 +253,7 @@ installs the right package. For the Flatpak it looks like this; set `V` to the
 version you want:
 
 ```bash
-V=5.0; cd ~/Downloads && curl -fL -o webroost-$V-x86_64.flatpak https://github.com/samschultzponsys/webroost/releases/download/v$V/webroost-$V-x86_64.flatpak && curl -fsSL https://github.com/samschultzponsys/webroost/releases/download/v$V/SHA256SUMS.txt | grep " webroost-$V-x86_64.flatpak$" | sha256sum -c - && flatpak install -y --user ./webroost-$V-x86_64.flatpak && flatpak run --branch=stable io.github.samschultzponsys.WebRoost --restart-all
+V=5.1; cd ~/Downloads && curl -fL -o webroost-$V-x86_64.flatpak https://github.com/samschultzponsys/webroost/releases/download/v$V/webroost-$V-x86_64.flatpak && curl -fsSL https://github.com/samschultzponsys/webroost/releases/download/v$V/SHA256SUMS.txt | grep " webroost-$V-x86_64.flatpak$" | sha256sum -c - && flatpak install -y --user ./webroost-$V-x86_64.flatpak && flatpak run --branch=stable io.github.samschultzponsys.WebRoost --restart-all
 ```
 
 ## Troubleshooting
@@ -401,8 +425,11 @@ Unit tests: `npm test`. Manual release checks: [TESTING.md](TESTING.md).
 
 ## Versioning and releases
 
-* Versions are **`MAJOR.MINOR`**: … 4.8, 4.9, **5.0**, 5.1 … `package.json`
-  stores `5.0.0` because npm needs three numbers.
+* Windows installers are built on GitHub's Windows runners (the `.exe`
+  resources need Windows); a release is only published when the Linux and
+  Windows builds both succeed.
+* Versions are **`MAJOR.MINOR`**: … 4.9, 5.0, 5.1 … `package.json`
+  stores `5.1.0` because npm needs three numbers.
 * To release: add notes under `## [Unreleased]` in `CHANGELOG.md`, bump the
   version (`npm run version:bump`) and push to `main`. GitHub Actions builds
   every package only when the version changes, and publishes **one release**,

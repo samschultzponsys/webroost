@@ -9,6 +9,32 @@ is in every file name (e.g. `pwa-pop-1.0-x86_64.rpm`).
 
 ## [Unreleased]
 
+## [5.1] - 2026-11-15
+
+### Added
+- **Windows 10 / 11 support** with `webroost-<ver>-x64-setup.exe`, a per-user
+  installer with no admin rights and a WebRoost Start menu entry. Same
+  features as on Linux:
+  - each app gets a Start menu shortcut (*WebRoost apps*) with its own
+    AppUserModelID, so its own taskbar button, icon and notifications;
+  - autostart through the Startup folder;
+  - unread count as a badge on the taskbar button, plus the tray icon badge;
+  - minimize and close to the tray (Windows reports minimizing directly);
+  - the phone app registered for `tel:`, `callto:` and `sip:` links;
+  - settings, icons and logins in `%APPDATA%\WebRoost`;
+  - memory measured as private bytes;
+  - updates: the installer is downloaded and checked against
+    `SHA256SUMS.txt`, the running apps are closed (saving their sign-ins),
+    it's installed silently, and the apps are reopened;
+  - uninstalling removes the app shortcuts and keeps your settings.
+- Releases now include the Windows installer. It's built on GitHub's Windows
+  runners in parallel with the Linux packages, and one `SHA256SUMS.txt`
+  covers everything.
+
+### Known limits
+- The installer isn't code-signed yet: SmartScreen may warn on first run
+  (*More info → Run anyway*).
+
 ## [5.0] - 2026-11-11
 
 Rolls over from 4.9 under the MAJOR.MINOR scheme.

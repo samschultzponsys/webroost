@@ -3,9 +3,10 @@ import * as path from 'path';
 import { nativeImage } from 'electron';
 import { defaultIcon, styleIcon } from './icons';
 import { clearCallHandler, setDefaultCallHandler } from './calls';
+import { winInstallApp, winIsInstalled, winSetAutostart, winUninstallApp } from './windows';
 import { AppConfig, resolveApp, resolveIconPath } from './config';
 import {
-  APPLICATIONS_DIR, AUTOSTART_DIR, assetPath, desktopQuote, ensureDir, ICON_DIR, IN_FLATPAK, launcherCommand, WAYLAND_FLAGS,
+  APPLICATIONS_DIR, AUTOSTART_DIR, assetPath, desktopQuote, ensureDir, ICON_DIR, IN_FLATPAK, IS_WINDOWS, launcherCommand, WAYLAND_FLAGS,
 } from './paths';
 
 /**
@@ -78,6 +79,10 @@ export interface InstallResult { desktop: string; autostart: string | null }
 export function installApp(app: AppConfig): InstallResult {
   const r = resolveApp(app);
   const icon = stableIcon(app);
+  if (IS_WINDOWS) {
+    const schemes = (app.handle_schemes ?? []).filter((x) => /^[a-z][a-z0-9+.-]*$/i.test(x));
+    return winInstallApp(app, icon, !!r.autostart, schemes);
+  }
   ensureDir(APPLICATIONS_DIR);
   const schemes = (app.handle_schemes ?? []).filter((x) => /^[a-z][a-z0-9+.-]*$/i.test(x));
   const extra: Record<string, string> = schemes.length
@@ -98,6 +103,7 @@ export function installApp(app: AppConfig): InstallResult {
 }
 
 export function setAutostart(app: AppConfig, enabled: boolean): string | null {
+  if (IS_WINDOWS) return winSetAutostart(app, stableIcon(app), enabled);
   const file = autostartFile(app.id);
   if (!enabled) {
     fs.rmSync(file, { force: true });
@@ -116,6 +122,7 @@ export function setAutostart(app: AppConfig, enabled: boolean): string | null {
 }
 
 export function uninstallApp(id: string): string[] {
+  if (IS_WINDOWS) return winUninstallApp(id);
   const removed: string[] = [];
   clearCallHandler(`${desktopId(id)}.desktop`);
   for (const old of legacyDesktopIds(id)) clearCallHandler(`${old}.desktop`);
@@ -127,11 +134,14 @@ export function uninstallApp(id: string): string[] {
 }
 
 export function isInstalled(id: string) {
+  if (IS_WINDOWS) return winIsInstalled(id);
   return { menu: fs.existsSync(desktopFile(id)), autostart: fs.existsSync(autostartFile(id)) };
 }
 
 /** Menu entry for the manager UI itself (useful for AppImage users). */
 export function installManagerEntry(): string {
+  // Windows: the installer already adds WebRoost to the Start menu.
+  if (IS_WINDOWS) return '';
   ensureDir(APPLICATIONS_DIR);
   ensureDir(ICON_DIR);
   const icon = path.join(ICON_DIR, 'webroost.png');
@@ -153,6 +163,7 @@ export function installManagerEntry(): string {
  *  - Flatpak entries whose Exec line is out of date (no --branch) are rewritten.
  */
 export function migrateDesktopEntries(apps: AppConfig[]): void {
+  if (IS_WINDOWS) return;
   // The manager's own menu entry from PWA Pop (native packages).
   const oldManager = path.join(APPLICATIONS_DIR, 'webtray.desktop');
   if (fs.existsSync(oldManager)) {

@@ -8,12 +8,12 @@ import {
 } from 'electron';
 import { HidFilter, ResolvedApp, getApp, loadApps, upsertApp } from './config';
 import { dialScript, findCallLink, numberFromLink, selectorScript } from './calls';
-import { badgeIcon, parseUnread } from './badge';
+import { badgeIcon, overlayBadge, parseUnread } from './badge';
 import { defaultIcon, imageFromBuffer, imageHasTransparency, loadIconFile, styleIcon } from './icons';
 import { desktopId, isInstalled, stableIcon } from './desktop';
 import { NotificationBridge } from './notifications';
 import { isSafeExternal, looksLikeAuth, OriginMatcher } from './origins';
-import { assetPath, CONFIG_FILE, ensureDir, ICON_DIR, IN_FLATPAK, readVersionMarker, releaseVersion, spawnSelf } from './paths';
+import { assetPath, IS_WINDOWS, CONFIG_FILE, ensureDir, ICON_DIR, IN_FLATPAK, readVersionMarker, releaseVersion, spawnSelf } from './paths';
 import { MemorySample, StateStore } from './state';
 import { onKdeWayland, syncKwinScript } from './kwin';
 import { backgroundCheck, isNewer, UpdateInfo } from './updater';
@@ -210,7 +210,7 @@ export class AppRuntime {
       // Elsewhere than KDE (where a KWin script handles minimize-to-tray), a
       // page that turns hidden while its window is shown, has lost focus and
       // isn't just navigating means the compositor minimized the window.
-      if (state === 'hidden' && e.sender === this.win.webContents && this.cfg.minimize_to_tray && !this.kwinMinimize
+      if (state === 'hidden' && e.sender === this.win.webContents && this.cfg.minimize_to_tray && !this.kwinMinimize && !IS_WINDOWS
         && this.win.isVisible() && Date.now() - this.shownAt > 1000) {
         setTimeout(async () => {
           if (this.win.isDestroyed() || !this.win.isVisible() || this.win.isFocused() || this.win.webContents.isLoading()) return;
@@ -332,6 +332,8 @@ export class AppRuntime {
         const hit = /^Pss:\s+(\d+)\s*kB/m.exec(t);
         if (hit) { kb = Number(hit[1]); pss++; }
       } catch { /* not visible from here (sandboxed child) */ }
+      // Windows: private bytes, memory owned by that process alone.
+      if (!kb && IS_WINDOWS && m.memory?.privateBytes) { kb = m.memory.privateBytes; pss++; }
       if (!kb) { kb = m.memory?.workingSetSize ?? 0; rss++; }
       const mb = kb / 1024;
       total += mb;
@@ -554,7 +556,7 @@ export class AppRuntime {
         probe: (${UNREAD_PROBE}).probe,
       })`, true);
     } catch (e) { page = `could not read the page: ${e}`; }
-    const server = await notificationServerReport();
+    const server = IS_WINDOWS ? [] : await notificationServerReport();
     const out = [
       `WebRoost ${releaseVersion()} diagnostics for "${this.cfg.id}" — ${new Date().toString()}`,
       `session: ${process.env.XDG_SESSION_TYPE ?? '?'} desktop: ${process.env.XDG_CURRENT_DESKTOP ?? '?'} flatpak: ${IN_FLATPAK}`,
@@ -1270,7 +1272,12 @@ export class AppRuntime {
     this.unread = n;
     this.tray?.setImage(this.trayImage());
     this.tray?.setToolTip(n > 0 ? `${this.cfg.name} — ${n} unread` : this.cfg.name);
-    app.setBadgeCount(n);
+    if (IS_WINDOWS) {
+      // Windows has no taskbar count: a small badge over the taskbar button.
+      if (!this.win.isDestroyed()) this.win.setOverlayIcon(n > 0 ? overlayBadge(n) : null, n > 0 ? `${n} unread` : '');
+    } else {
+      app.setBadgeCount(n);
+    }
   }
 
   private reload() {

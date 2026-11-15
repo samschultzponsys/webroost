@@ -15,7 +15,8 @@ import { autostartFile, desktopFile, desktopId, installApp, isInstalled, migrate
 import { StateStore } from './state';
 import { onKdeWayland } from './kwin';
 import { setDefaultCallHandler } from './calls';
-import { CONFIG_FILE, ensureDir, migrateLegacyConfig, PROFILE_DIR, releaseVersion, writeVersionMarker } from './paths';
+import { appUserModelId, winSetSchemes } from './windows';
+import { CONFIG_FILE, ensureDir, IS_WINDOWS, migrateLegacyConfig, PROFILE_DIR, releaseVersion, writeVersionMarker } from './paths';
 
 const HELP = `WebRoost (webroost) — run web apps as tray-resident desktop apps
 
@@ -202,11 +203,20 @@ function main() {
         app.commandLine.removeSwitch('disable-backgrounding-occluded-windows');
       }
     }
+    // Windows: the app's own identity (taskbar button, icon, notifications).
+    if (IS_WINDOWS) app.setAppUserModelId(appUserModelId(cfg.id));
     if (!app.requestSingleInstanceLock({ id: cfg.id })) { app.exit(0); return; }
     try { migrateDesktopEntries([cfg]); } catch { /* best effort */ }
-    // The phone app keeps the tel:/callto:/sip: default (something else may
-    // have taken it, or an older version couldn't write it inside Flatpak).
-    if (cfg.handle_schemes?.length && isInstalled(cfg.id).menu) {
+    if (IS_WINDOWS) {
+      // Windows only shows an app's notifications when a Start menu shortcut
+      // with its identity exists; it also registers phone links.
+      try {
+        if (!isInstalled(cfg.id).menu) installApp(cfg);
+        else if (cfg.handle_schemes?.length) winSetSchemes(cfg, cfg.handle_schemes);
+      } catch (e) { console.warn('[webroost] could not create the Start menu shortcut', e); }
+    } else if (cfg.handle_schemes?.length && isInstalled(cfg.id).menu) {
+      // The phone app keeps the tel:/callto:/sip: default (something else may
+      // have taken it, or an older version couldn't write it inside Flatpak).
       try { setDefaultCallHandler(`${desktopId(cfg.id)}.desktop`, cfg.handle_schemes); } catch (e) { console.warn('[webroost] could not set the phone-link default', e); }
     }
     // We got the lock, so this app wasn't running: nothing to quit.
@@ -228,6 +238,8 @@ function main() {
   app.setPath('userData', path.join(PROFILE_DIR, '_manager'));
   process.env.CHROME_DESKTOP = process.env.FLATPAK_ID ? `${process.env.FLATPAK_ID}.desktop` : 'webroost.desktop';
   app.commandLine.appendSwitch('class', 'webroost');
+  // Windows: same identity as the installer's Start menu shortcut.
+  if (IS_WINDOWS) app.setAppUserModelId('io.github.samschultzponsys.WebRoost');
   if (!app.requestSingleInstanceLock()) { app.exit(0); return; }
   try { migrateDesktopEntries(loadApps()); } catch { /* best effort */ }
   writeVersionMarker();

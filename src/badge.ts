@@ -20,6 +20,17 @@ export function badgeIcon(base: NativeImage, count: number): NativeImage {
   return nativeImage.createFromBitmap(data, { width: SIZE, height: SIZE });
 }
 
+/** Windows taskbar overlay: just the red badge, filling a small square. */
+export function overlayBadge(count: number): NativeImage {
+  const S = 32;
+  const data = Buffer.alloc(S * S * 4);
+  const bm = { data, width: S, height: S };
+  const text = count > 9 ? '9+' : String(count);
+  drawDisc(bm, S / 2 - 0.5, S / 2 - 0.5, S / 2 - 1, [229, 57, 53], 2);
+  drawText(bm, text, S / 2 - 0.5 + (text.length > 1 ? 0.5 : 0), S / 2 - 0.5, text.length > 1 ? 3 : 4, 2);
+  return nativeImage.createFromBitmap(data, { width: S, height: S });
+}
+
 /** Extract an unread count from a page title. Returns 0 when there is none. */
 export function parseUnread(title: string, pattern?: string): number {
   let re: RegExp;

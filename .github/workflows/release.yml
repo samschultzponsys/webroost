@@ -208,10 +208,42 @@ jobs:
       release: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.ver.outputs.released == 'false' }}
       publish_pages: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.ver.outputs.released == 'false' && steps.flatpak.outputs.site == 'true' }}
 
+  # The Windows installer, built on Windows (NSIS needs it for the .exe resources).
+  build-windows:
+    needs: check
+    if: inputs.from_run == '' && needs.check.outputs.released == 'false'
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Build Windows installer
+        id: win
+        shell: bash
+        run: |
+          V=$(node scripts/version.js)
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          RELEASE_VERSION="$V" npx electron-builder --win nsis --x64 --publish never
+          ls -la release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: webroost-${{ steps.win.outputs.version }}-windows
+          path: release/webroost-*-setup.exe
+          if-no-files-found: error
+          retention-days: 2
+
   # Tags the commit and publishes one GitHub release with every package.
   release:
-    needs: build
-    if: always() && (needs.build.outputs.release == 'true' || inputs.from_run != '')
+    needs: [build, build-windows]
+    if: always() && ((needs.build.outputs.release == 'true' && needs.build-windows.result == 'success') || inputs.from_run != '')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -237,14 +269,22 @@ jobs:
           run-id: ${{ env.RUN }}
           github-token: ${{ github.token }}
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: webroost-${{ env.V }}-windows
+          path: dist
+          run-id: ${{ env.RUN }}
+          github-token: ${{ github.token }}
+
       - name: Check packages
         run: |
           ls -la dist
           # Every release carries every distro's package.
-          for f in x86_64.rpm amd64.deb x64.pacman x86_64.AppImage x64.tar.gz x86_64.flatpak; do
+          for f in x86_64.rpm amd64.deb x64.pacman x86_64.AppImage x64.tar.gz x86_64.flatpak x64-setup.exe; do
             test -f "dist/webroost-$V-$f" || { echo "::error::webroost-$V-$f is missing; not publishing an incomplete release"; exit 1; }
           done
-          test -f dist/SHA256SUMS.txt
+          # One checksum list for every package, Windows included.
+          (cd dist && sha256sum webroost-$V-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
 
       - name: Release notes from CHANGELOG.md
         run: |
@@ -259,6 +299,7 @@ jobs:
             echo "### Downloads"
             echo "| Distro | File |"
             echo "|---|---|"
+            echo "| Windows 10 / 11 | \`webroost-$V-x64-setup.exe\` |"
             echo "| Fedora / RHEL / openSUSE | \`webroost-$V-x86_64.rpm\` |"
             echo "| Debian / Ubuntu / Mint | \`webroost-$V-amd64.deb\` |"
             echo "| Arch / Manjaro | \`webroost-$V-x64.pacman\` |"

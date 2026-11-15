@@ -21,7 +21,7 @@ export const REPO = 'samschultzponsys/webroost';
 const CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;
 const STATE_FILE = path.join(STATE_DIR, '_updates.json');
 
-export type InstallKind = 'flatpak' | 'appimage' | 'rpm' | 'deb' | 'pacman' | 'manual' | 'dev';
+export type InstallKind = 'flatpak' | 'appimage' | 'rpm' | 'deb' | 'pacman' | 'nsis' | 'manual' | 'dev';
 
 export interface UpdateInfo {
   current: string;
@@ -74,6 +74,7 @@ export async function installKind(): Promise<InstallKind> {
   if (kindCache) return kindCache;
   let kind: InstallKind = 'manual';
   if (!app.isPackaged) kind = 'dev';
+  else if (process.platform === 'win32') kind = 'nsis';
   else if (IN_FLATPAK) kind = 'flatpak';
   else if (process.env.APPIMAGE) kind = 'appimage';
   else {
@@ -92,12 +93,13 @@ function assetName(kind: InstallKind, v: string): string | null {
     case 'rpm': return `webroost-${v}-x86_64.rpm`;
     case 'deb': return `webroost-${v}-amd64.deb`;
     case 'pacman': return `webroost-${v}-x64.pacman`;
+    case 'nsis': return `webroost-${v}-x64-setup.exe`;
     default: return null;
   }
 }
 
 function canInstall(kind: InstallKind): boolean {
-  return kind === 'appimage' || kind === 'rpm' || kind === 'deb' || kind === 'pacman';
+  return kind === 'appimage' || kind === 'rpm' || kind === 'deb' || kind === 'pacman' || kind === 'nsis';
 }
 
 function info(s: UpdateState, kind: InstallKind, error?: string): UpdateInfo {
@@ -245,6 +247,14 @@ export async function installUpdate(onProgress?: (p: number) => void): Promise<s
   fs.renameSync(file + '.part', file);
   await verify(file, name, s.assets!);
 
+  if (kind === 'nsis') {
+    // Windows: run the installer silently. It replaces WebRoost (the caller
+    // has already quit the running apps) and starts it again (--force-run).
+    const { spawn } = require('child_process') as typeof import('child_process');
+    const child = spawn(file, ['/S', '--force-run'], { detached: true, stdio: 'ignore' });
+    child.unref();
+    return `Installing WebRoost ${u.latest}. It starts again by itself in a moment.`;
+  }
   if (kind === 'appimage') {
     const target = process.env.APPIMAGE as string;
     const tmp = target + '.new';
@@ -408,6 +418,12 @@ export async function updateGuide(): Promise<UpdateGuide> {
         kind, label: 'Arch package', where: '/opt/webroost',
         summary: 'Click "Install update" when one is available. It asks for your password, then updates the package.',
         steps: [{ text: 'Or from a terminal:', command: 'webroost --update' }, ...curlStep(curlCommand(kind, v))],
+      };
+    case 'nsis':
+      return {
+        kind, label: 'Windows installer', where: path.dirname(process.execPath),
+        summary: 'Click "Install update" when one is available: WebRoost downloads and checks the installer, closes your apps, installs it and reopens them.',
+        steps: [{ text: `Or download the installer for ${what} and run it (Download below saves it to your Downloads folder).`, download: true }],
       };
     case 'manual': {
       const dir = path.dirname(fs.realpathSync(process.execPath));
