@@ -393,7 +393,7 @@ webroost --app outlook
 
 ## Build from source
 
-Requires Node.js 20+ (and `rpmbuild` for rpm packages).
+Requires Node.js 24+ (and `rpmbuild` for rpm packages).
 
 ```bash
 git clone https://github.com/samschultzponsys/webroost && cd webroost && npm ci

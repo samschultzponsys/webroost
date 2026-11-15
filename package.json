@@ -32,7 +32,7 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@types/node": "^22.20.5",
+    "@types/node": "^24.0.0",
     "electron": "^45.2.2",
     "electron-builder": "^26.18.0",
     "typescript": "^5.9.3"
@@ -171,5 +171,8 @@
       "include": "build/installer.nsh",
       "artifactName": "webroost-${env.RELEASE_VERSION}-x64-setup.${ext}"
     }
+  },
+  "engines": {
+    "node": ">=24"
   }
 }
