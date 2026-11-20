@@ -251,3 +251,12 @@ test('Windows helpers: icon files, file names, shortcut arguments', () => {
   assert.strictEqual(winArgs(['C:\\Program Files\\x', '--app', 'a']), '"C:\\Program Files\\x" --app a');
   assert.strictEqual(appUserModelId('outlook'), 'io.github.samschultzponsys.WebRoost.outlook');
 });
+
+test('Flatpak metainfo lists the current release first', () => {
+  const { release } = require('../scripts/version');
+  const meta = fs.readFileSync(path.join(__dirname, '..', 'flatpak', 'io.github.samschultzponsys.WebRoost.metainfo.xml'), 'utf8');
+  const first = meta.match(/<releases>\s*<release version="([^"]+)"/);
+  assert.ok(first, 'metainfo has no <release> entries');
+  assert.strictEqual(first[1], release,
+    `metainfo's newest release is ${first[1]} but package.json is ${release}: run npm run version:bump instead of editing the version by hand`);
+});
