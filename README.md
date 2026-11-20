@@ -80,6 +80,13 @@ Every release has every format, with the version in the file name:
 | Any distro, portable | `webroost-<ver>-x86_64.AppImage` | `chmod +x webroost-*.AppImage && ./webroost-*.AppImage` |
 | Manual | `webroost-<ver>-x64.tar.gz` | Extract anywhere and run `./webroost` |
 
+**Flatpak in one command** (installs or updates to the latest release, after
+checking the download against `SHA256SUMS.txt`):
+
+```bash
+V=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/samschultzponsys/webroost/releases/latest | sed 's#.*/tag/v##'); cd ~/Downloads && curl -fL -o webroost-$V-x86_64.flatpak https://github.com/samschultzponsys/webroost/releases/download/v$V/webroost-$V-x86_64.flatpak && curl -fsSL https://github.com/samschultzponsys/webroost/releases/download/v$V/SHA256SUMS.txt | grep " webroost-$V-x86_64.flatpak$" | sha256sum -c - && flatpak install -y --user ./webroost-$V-x86_64.flatpak
+```
+
 The rpm, deb and pacman packages install to `/opt/webroost` and add the
 `webroost` command (plus `webtray`, the old name), a menu entry and the headset
 udev rule.
@@ -249,12 +256,14 @@ banner in the manager.
 
 **How to update** in the manager's footer shows the exact steps for your
 install, including a copyable one-line command that downloads, verifies and
-installs the right package. For the Flatpak it looks like this; set `V` to the
-version you want:
+installs the right package. To update the Flatpak straight to the latest
+release from a terminal, and restart running apps onto it:
 
 ```bash
-V=5.1; cd ~/Downloads && curl -fL -o webroost-$V-x86_64.flatpak https://github.com/samschultzponsys/webroost/releases/download/v$V/webroost-$V-x86_64.flatpak && curl -fsSL https://github.com/samschultzponsys/webroost/releases/download/v$V/SHA256SUMS.txt | grep " webroost-$V-x86_64.flatpak$" | sha256sum -c - && flatpak install -y --user ./webroost-$V-x86_64.flatpak && flatpak run --branch=stable io.github.samschultzponsys.WebRoost --restart-all
+V=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/samschultzponsys/webroost/releases/latest | sed 's#.*/tag/v##'); cd ~/Downloads && curl -fL -o webroost-$V-x86_64.flatpak https://github.com/samschultzponsys/webroost/releases/download/v$V/webroost-$V-x86_64.flatpak && curl -fsSL https://github.com/samschultzponsys/webroost/releases/download/v$V/SHA256SUMS.txt | grep " webroost-$V-x86_64.flatpak$" | sha256sum -c - && flatpak install -y --user ./webroost-$V-x86_64.flatpak && flatpak run --branch=stable io.github.samschultzponsys.WebRoost --restart-all
 ```
+
+For a specific version, replace the part before the first `;` with e.g. `V=5.1`.
 
 ## Troubleshooting
 
