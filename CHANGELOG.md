@@ -9,6 +9,12 @@ is in every file name (e.g. `pwa-pop-1.0-x86_64.rpm`).
 
 ## [Unreleased]
 
+## [5.2] - 2026-11-20
+
+### Fixed
+- The Flatpak shows its real version in `flatpak list` and Discover. Builds
+  3.1 to 5.1 reported themselves as 3.0.
+
 ## [5.1] - 2026-11-15
 
 ### Added

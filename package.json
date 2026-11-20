@@ -1,7 +1,7 @@
 {
   "name": "webroost",
   "productName": "WebRoost",
-  "version": "5.1.0",
+  "version": "5.2.0",
   "description": "Run web apps (Outlook, Claude, Linkus…) as standalone, tray-resident desktop apps on Linux and Windows",
   "main": "dist/main.js",
   "license": "Apache-2.0",
